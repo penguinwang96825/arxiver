@@ -21,7 +21,7 @@ jobs:
         python -m pip install -r requirements.txt
         python -m pip install -e .
     - name: Fetch latest data
-      run: python -m arxiver download
+      run: python -m arxiver download --max_results 100
     - name: Commit and push if it changed
       run: |-
         git config user.name "penguinwang96825"
