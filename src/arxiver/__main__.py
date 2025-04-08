@@ -6,6 +6,7 @@ cli = Radicli()
 @cli.command(
     "download", 
     max_results=Arg(
+        "--max_results", 
         help="The maximum number of results to be returned. To fetch every result available, set `max_results=None`."
     )
 )
