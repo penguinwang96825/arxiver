@@ -101,27 +101,60 @@ def fetch_arxiv_papers(subject, max_results: int = 10):
 @retry_decorator(max_attempts=3, initial_delay=1, exceptions=(IOError, OSError))
 def save_to_jsonl(papers: list[ArxivPaper]):
     existing_papers = set()
+    
+    # Create data directory if it doesn't exist
+    os.makedirs('data', exist_ok=True)
+    
     for jsonl_filepath in glob(os.path.join('data', '*.jsonl')):
-        with open(jsonl_filepath, 'r') as f:
-            for line in f:
-                entry = json.loads(line)
-                paper = ArxivPaper(**entry)
-                existing_papers.add(paper.link)
+        try:
+            with open(jsonl_filepath, 'r') as f:
+                for line_num, line in enumerate(f, 1):
+                    line = line.strip()
+                    if not line:  # Skip empty lines
+                        console.log(f"[yellow]Warning: Empty line in {jsonl_filepath} at line {line_num}[/yellow]")
+                        continue
+                        
+                    try:
+                        entry = json.loads(line)
+                        paper = ArxivPaper(**entry)
+                        existing_papers.add(paper.link)
+                    except json.JSONDecodeError as e:
+                        console.log(f"[yellow]Warning: Invalid JSON in {jsonl_filepath} at line {line_num}: {str(e)}[/yellow]")
+                        continue
+                    except TypeError as e:
+                        console.log(f"[yellow]Warning: Type error in {jsonl_filepath} at line {line_num}: {str(e)}[/yellow]")
+                        continue
+        except FileNotFoundError:
+            console.log(f"[yellow]File {jsonl_filepath} not found, will be created if needed[/yellow]")
+            continue
+        except IOError as e:
+            console.log(f"[yellow]IO error reading {jsonl_filepath}: {str(e)}[/yellow]")
+            continue
 
     for paper in papers:
         published = paper.published
         date_part, time_part = published.split()
 
         jsonl_filepath = os.path.join('data', f'{date_part}.jsonl')
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(jsonl_filepath), exist_ok=True)
+        
         if paper.link not in existing_papers:
-            with open(jsonl_filepath, 'a') as f:
-                entry = paper.__dict__
-                f.write(json.dumps(entry) + '\n')
+            try:
+                with open(jsonl_filepath, 'a') as f:
+                    entry = paper.__dict__
+                    f.write(json.dumps(entry) + '\n')
+            except IOError as e:
+                console.log(f"[bold red]Failed to write to {jsonl_filepath}: {str(e)}[/bold red]")
         else:
             console.log(f"Skip. Paper `{paper.link}` exists.")
 
 
 def main():
+    # Make sure the data directory exists
+    os.makedirs('data', exist_ok=True)
+     
     subjects = [
         'cs.CL', 'cs.AI', 'cs.CV', 'cs.DM', 'cs.IR', 'cs.IT', 'cs.LG', 'cs.MA', 'cs.NA', 
         'q-fin.CP', 'q-fin.MF', 'q-fin.ST', 'q-fin.TR', 
@@ -135,12 +168,10 @@ def main():
             papers = fetch_arxiv_papers(subject, max_results=200)
             save_to_jsonl(papers)
         except Exception as e:
-            console.log(f"Failed to process subject {subject}: {str(e)}")
+            console.log(f"[bold red]Failed to process subject {subject}: {str(e)}[/bold red]")
             # Continue with next subject instead of failing the entire process
             continue
 
 
 if __name__ == '__main__':
-    # Make sure the data directory exists
-    os.makedirs('data', exist_ok=True)
     main()
